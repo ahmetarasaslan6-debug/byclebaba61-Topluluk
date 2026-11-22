@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>byclebaba61 Topluluk</title>
+<style>
+:root{--bg:#f6f5f1;--sf:#fff;--tx:#1d1d1b;--mu:#6b6a64;--bd:#e3e1d9;--ac:#2f5d50;--ac2:#e4efe9;--me:#dbeee6;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171816;--sf:#222320;--tx:#ecebe5;--mu:#9a998f;--bd:#34352f;--ac:#7fc2ac;--ac2:#25332e;--me:#27403a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#171816;--sf:#222320;--tx:#ecebe5;--mu:#9a998f;--bd:#34352f;--ac:#7fc2ac;--ac2:#25332e;--me:#27403a;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);border-bottom:1px solid var(--bd);z-index:5}
+.in{max-width:760px;margin:0 auto;padding:0 16px}
+.bar{display:flex;align-items:center;justify-content:space-between;padding:14px 0 8px}
+h1{font:600 20px Georgia,"Times New Roman",serif;margin:0}
+nav{display:flex;gap:6px;padding-bottom:10px}
+nav button{flex:1;padding:9px;border:1px solid var(--bd);background:var(--sf);color:var(--tx);border-radius:10px;font:inherit;cursor:pointer}
+nav button.on{background:var(--ac);color:var(--bg);border-color:var(--ac)}
+main{padding:16px 0 140px}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:10px}
+.card.link{cursor:pointer}.card.link:hover{border-color:var(--ac)}
+.t{font-weight:600;margin:0 0 2px}.m{color:var(--mu);font-size:13px}
+.body{white-space:pre-wrap;word-wrap:break-word;margin:8px 0 0}
+input,textarea{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px}
+textarea{resize:vertical;min-height:80px}
+.btn{background:var(--ac);color:var(--bg);border:0;border-radius:10px;padding:10px 16px;font:inherit;cursor:pointer}
+.ghost{background:none;border:0;color:var(--mu);cursor:pointer;font:inherit;padding:0}
+.row{display:flex;gap:8px;margin-top:8px;align-items:center}
+.chat{display:flex;flex-direction:column;gap:6px}
+.msg{max-width:82%;padding:8px 12px;border-radius:14px;background:var(--sf);border:1px solid var(--bd);align-self:flex-start;word-wrap:break-word;white-space:pre-wrap}
+.msg.me{align-self:flex-end;background:var(--me)}
+.msg .m{display:block;margin-bottom:2px}
+.send{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--bd);padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px))}
+.emo{display:flex;flex-wrap:wrap;gap:2px;margin-top:6px}.emo button{background:none;border:0;font-size:20px;cursor:pointer;padding:2px 4px;border-radius:8px}.emo button:hover{background:var(--ac2)}
+.ph{display:block;max-width:100%;max-height:360px;border-radius:10px;margin-top:8px}
+.toast{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:8px 14px;border-radius:10px;z-index:20;font-size:14px}
+.empty{text-align:center;color:var(--mu);padding:40px 0}
+</style>
+</head>
+<body>
+<header><div class="in">
+ <div class="bar"><h1>byclebaba61 Topluluk</h1><button class="ghost m" id="who" hidden title="Adını değiştir"></button></div>
+ <div class="row" id="nickrow" hidden style="padding-bottom:8px;margin-top:0"><input id="ni" maxlength="24" placeholder="Yeni adın" autocomplete="off"><button class="btn" id="ns">Kaydet</button></div>
+ <nav><button id="tf" class="on">Forum</button><button id="tc">Sohbet</button></nav>
+</div></header>
+<div id="toast" class="toast" hidden></div>
+<main class="in" id="app"><div class="empty">Yükleniyor…</div></main>
+<div class="send" id="sendbar" hidden><div class="in"><div class="row" style="margin:0">
+ <input id="ci" placeholder="Mesaj yaz…" maxlength="500" autocomplete="off"><button class="btn" id="cs">Gönder</button></div><div id="chatemo"></div></div></div>
+
+<script>
+const $=s=>document.querySelector(s), app=$('#app');
+let db,user,uid=null,canEdit=false,view='forum',openId=null,names={};
+let threads=[],chat=[],replies=[],unsubR=null;
+let nicks={};const nm=id=>nicks[id]||names[id]||'Biri';
+const fmt=ts=>new Date(ts).toLocaleString('tr-TR',{dateStyle:'short',timeStyle:'short'});
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+async function resolve(ids){
+  ids=[...new Set(ids)].filter(i=>i&&!(i in names));
+  if(!ids.length||!user)return;
+  try{const p=await user.profiles(ids);ids.forEach(i=>names[i]=(p[i]&&p[i].name)||'')}catch(e){}
+}
+async function refresh(list){await resolve(list.map(x=>x.by));render()}
+
+let assets=null;
+function toast(t){const d=$('#toast');d.textContent=t;d.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>d.hidden=true,3000)}
+function photo(id){
+  if(!/^[0-9a-f]{32}$/.test(id||''))return document.createTextNode('');
+  const i=el('img','ph');i.src='/_blob/'+id;i.loading='lazy';i.alt='Fotoğraf';
+  i.onerror=()=>i.replaceWith(el('span','m','[Fotoğraf görüntülenemiyor]'));return i}
+async function shrink(f){try{const b=await createImageBitmap(f),k=Math.min(1,1280/Math.max(b.width,b.height));
+  const c=document.createElement('canvas');c.width=Math.round(b.width*k);c.height=Math.round(b.height*k);
+  c.getContext('2d').drawImage(b,0,0,c.width,c.height);return (await new Promise(r=>c.toBlob(r,'image/jpeg',.82)))||f}catch(e){return f}}
+async function upPhoto(){
+  const f=await new Promise(res=>{const i=document.createElement('input');i.type='file';i.accept='image/*';i.onchange=()=>res(i.files[0]||null);i.click()});
+  if(!f)return null;
+  try{const r=await assets.upload(await shrink(f));return r.id}
+  catch(e){toast(e&&e.code==='unsupported_type'?'Bu dosya türü desteklenmiyor':'Fotoğraf yüklenemedi');return null}}
+function photoBtn(row){const st={id:null};if(!assets)return st;
+  const p=el('button','ghost','📷 Fotoğraf');p.type='button';
+  p.onclick=async()=>{p.disabled=true;p.textContent='Yükleniyor…';const id=await upPhoto();if(id)st.id=id;p.disabled=false;p.textContent=st.id?'📷 Eklendi ✓':'📷 Fotoğraf'};
+  row.append(p);return st}
+const EMO=['😀','😂','😍','👍','🔥','❤️','🎉','😎','🤔','😢','🙏','👀'];
+function emojiBar(inp){const b=el('div','emo');EMO.forEach(e=>{const x=el('button',null,e);x.type='button';x.onmousedown=ev=>ev.preventDefault();
+  x.onclick=()=>{const s=inp.selectionStart??inp.value.length,t=inp.selectionEnd??s;inp.value=inp.value.slice(0,s)+e+inp.value.slice(t);inp.focus();inp.selectionStart=inp.selectionEnd=s+e.length};b.append(x)});return b}
+function render(){
+  $('#sendbar').hidden=view!=='chat';
+  if(uid&&db){$('#who').hidden=false;$('#who').textContent=nm(uid)+' ✎'}
+  $('#tf').classList.toggle('on',view!=='chat');$('#tc').classList.toggle('on',view==='chat');
+  app.replaceChildren();
+  if(!db){app.append(el('div','empty','Veri bağlantısı kullanılamıyor. Sayfayı giriş yaparak açın.'));return}
+  if(view==='chat')return renderChat();
+  if(view==='thread')return renderThread();
+  renderForum();
+}
+function renderForum(){
+  const f=el('div','card');
+  const ti=el('input');ti.placeholder='Konu başlığı';ti.maxLength=120;
+  const bo=el('textarea');bo.placeholder='Ne konuşmak istersin?';bo.maxLength=3000;bo.style.marginTop='8px';
+  const row=el('div','row'),b=el('button','btn','Konu aç');row.append(b);const pb=photoBtn(row);
+  b.onclick=async()=>{
+    const title=ti.value.trim(),body=bo.value.trim();
+    if(!title||!body||!uid)return;
+    b.disabled=true;
+    try{await db.collection('threads').add({title,body,by:uid,ts:Date.now(),...(pb.id?{img:pb.id}:{})});ti.value=bo.value='';pb.id=null}catch(e){alert('Gönderilemedi: '+(e.code||''))}
+    b.disabled=false;
+  };
+  f.append(ti,bo,emojiBar(bo),row);app.append(f);
+  if(!threads.length)app.append(el('div','empty','Henüz konu yok. İlkini sen aç!'));
+  threads.forEach(t=>{
+    const c=el('div','card link');
+    c.append(el('p','t',t.title),el('span','m',nm(t.by)+' · '+fmt(t.ts)));
+    c.onclick=()=>openThread(t.id);app.append(c);
+  });
+}
+function openThread(id){
+  openId=id;view='thread';replies=[];
+  if(unsubR)unsubR();
+  unsubR=db.collection('replies').where('thread','==',id).onSnapshot(s=>{
+    replies=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.ts-b.ts);refresh(replies);
+  },()=>{});
+  render();
+}
+function renderThread(){
+  const t=threads.find(x=>x.id===openId);
+  const back=el('button','ghost','← Forum');back.onclick=()=>{view='forum';if(unsubR){unsubR();unsubR=null}render()};
+  app.append(back);
+  if(!t){app.append(el('div','empty','Bu konu bulunamadı.'));return}
+  const c=el('div','card');
+  c.append(el('p','t',t.title),el('span','m',nm(t.by)+' · '+fmt(t.ts)),el('p','body',t.body));if(t.img)c.append(photo(t.img));
+  if(t.by===uid||canEdit){
+    const d=el('button','ghost','Konuyu sil');d.style.marginTop='8px';
+    d.onclick=async()=>{if(!d.dataset.s){d.dataset.s=1;d.textContent='Emin misin? Tekrar dokun';return}
+      try{for(const r of replies)await db.doc('replies/'+r.id).delete();if(t.img&&assets)assets.delete(t.img).catch(()=>{});await db.doc('threads/'+t.id).delete();back.click()}catch(e){}};
+    c.append(d);
+  }
+  app.append(c);
+  replies.forEach(r=>{
+    const x=el('div','card');
+    x.append(el('span','m',nm(r.by)+' · '+fmt(r.ts)),el('p','body',r.text||''));if(r.img)x.append(photo(r.img));
+    if(r.by===uid||canEdit){const d=el('button','ghost','Sil');d.onclick=()=>{if(r.img&&assets)assets.delete(r.img).catch(()=>{});db.doc('replies/'+r.id).delete().catch(()=>{})};x.append(d)}
+    app.append(x);
+  });
+  const bo=el('textarea');bo.placeholder='Yanıt yaz…';bo.maxLength=2000;
+  const row=el('div','row'),b=el('button','btn','Yanıtla');row.append(b);const pb=photoBtn(row);
+  b.onclick=async()=>{
+    const text=bo.value.trim();if((!text&&!pb.id)||!uid)return;b.disabled=true;
+    try{await db.collection('replies').add({thread:openId,text,by:uid,ts:Date.now(),...(pb.id?{img:pb.id}:{})});bo.value=''}catch(e){alert('Gönderilemedi: '+(e.code||''))}
+    b.disabled=false;
+  };
+  const f=el('div','card');f.append(bo,emojiBar(bo),row);app.append(f);
+}
+function renderChat(){
+  if(!chat.length){app.append(el('div','empty','Sohbet boş. Selam ver!'));return}
+  const w=el('div','chat');
+  chat.forEach(m=>{
+    const b=el('div','msg'+(m.by===uid?' me':''));
+    b.append(el('span','m',nm(m.by)+' · '+new Date(m.ts).toLocaleTimeString('tr-TR',{timeStyle:'short'})),document.createTextNode(m.text||''));if(m.img)b.append(photo(m.img));
+    if(m.by===uid||canEdit){const d=el('button','ghost','Sil');d.style.cssText='display:block;font-size:12px;margin-top:2px';
+      d.onclick=()=>{if(m.img&&assets)assets.delete(m.img).catch(()=>{});db.doc('chat/'+m.id).delete().catch(()=>{})};b.append(d)}
+    w.append(b);
+  });
+  app.append(w);
+  requestAnimationFrame(()=>window.scrollTo(0,document.body.scrollHeight));
+}
+async function send(){
+  const i=$('#ci'),text=i.value.trim();if(!text||!uid||!db)return;
+  i.value='';
+  try{await db.collection('chat').add({text,by:uid,ts:Date.now()})}catch(e){i.value=text}
+}
+$('#tf').onclick=()=>{view=openId&&view==='thread'?'thread':'forum';render()};
+$('#tc').onclick=()=>{view='chat';render()};
+$('#cs').onclick=send;
+$('#chatemo').replaceWith(emojiBar($('#ci')));
+$('#who').onclick=()=>{const r=$('#nickrow');r.hidden=!r.hidden;if(!r.hidden){$('#ni').value=nm(uid);$('#ni').focus()}};
+$('#ns').onclick=async()=>{const n=$('#ni').value.trim().slice(0,24);if(!n||!uid)return;
+  try{await db.doc('nicks/'+uid).set({name:n});$('#nickrow').hidden=true}catch(e){}};
+$('#ni').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ns').click()});
+$('#ci').addEventListener('keydown',e=>{if(e.key==='Enter')send()});
+
+(async()=>{
+  try{
+    const c=window.claude;
+    const [d,u]=await Promise.all([c.use('db'),c.use('user')]);
+    db=d;user=u;try{assets=await c.use('assets')}catch(e){}
+    if(user){uid=await user.id();canEdit=(await user.canEdit())||false;
+      await resolve([uid]);}
+  }catch(e){}
+  render();
+  if(assets&&db&&uid){const cp=el('button','btn','📷');cp.type='button';cp.title='Fotoğraf gönder';
+    cp.onclick=async()=>{cp.disabled=true;const id=await upPhoto();cp.disabled=false;if(!id)return;
+      const i=$('#ci'),text=i.value.trim();i.value='';
+      try{await db.collection('chat').add({text,by:uid,img:id,ts:Date.now()})}catch(e){toast('Gönderilemedi')}};
+    $('#cs').before(cp)}
+  if(!db||!uid){if(db)app.replaceChildren(el('div','empty','Katılmak için giriş yapmalısın.'));return}
+  db.collection('nicks').onSnapshot(s=>{nicks={};s.docs.forEach(d=>{const n=d.data().name;if(typeof n==='string')nicks[d.id]=n});render()},()=>{});
+  db.collection('threads').orderBy('ts','desc').limit(100).onSnapshot(s=>{
+    threads=s.docs.map(d=>({id:d.id,...d.data()}));refresh(threads);
+  },()=>{});
+  db.collection('chat').orderBy('ts','desc').limit(100).onSnapshot(s=>{
+    chat=s.docs.map(d=>({id:d.id,...d.data()})).reverse();refresh(chat);
+  },()=>{});
+})();
+</script>
+</body>
+</html>
